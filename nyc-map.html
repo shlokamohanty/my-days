@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>How was your day?</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<style>
+@font-face { font-family:'Space Mono'; src:url('fonts/Space_Mono/SpaceMono-Regular.ttf') format('truetype'); font-weight:400; font-style:normal; }
+@font-face { font-family:'Space Mono'; src:url('fonts/Space_Mono/SpaceMono-Bold.ttf') format('truetype'); font-weight:700; font-style:normal; }
+@font-face { font-family:'Space Mono'; src:url('fonts/Space_Mono/SpaceMono-Italic.ttf') format('truetype'); font-weight:400; font-style:italic; }
+@font-face { font-family:'Space Mono'; src:url('fonts/Space_Mono/SpaceMono-BoldItalic.ttf') format('truetype'); font-weight:700; font-style:italic; }
+* { box-sizing:border-box; margin:0; padding:0; }
+body { background:#fbf8ef; overflow:hidden; height:100vh; width:100vw; }
+#app { display:flex; flex-direction:column; height:100vh; width:100vw; }
+#main { position:relative; flex:1; min-height:0; overflow:hidden; }
+header {
+  position:relative; z-index:10; flex-shrink:0;
+  padding:clamp(12px,1.8vh,20px) clamp(20px,3vw,36px) clamp(10px,1.2vh,14px) 12px;
+  background:rgba(251,248,239,0.95);
+  display:flex; align-items:center; gap:clamp(16px,2.5vw,32px);
+  flex-wrap:wrap;
+}
+.title { font-family:'Space Mono',monospace; font-size:clamp(22px,2.8vw,32px); font-weight:700; letter-spacing:0.06em; color:#000; }
+.legend { display:flex; gap:clamp(8px,1vw,14px); flex-wrap:wrap; align-items:center; }
+.legend-item { font-family:'Space Mono',monospace; font-size:clamp(8px,0.8vw,10px); letter-spacing:0.06em; opacity:0.85; }
+.legend-divider { width:0.5px; height:12px; background:#ccc; align-self:center; }
+
+#canvas-wrap {
+  position:absolute; top:0; left:clamp(260px,30vw,420px); right:0; bottom:0;
+  z-index:1; touch-action:none; transition:left 0.35s ease;
+}
+#canvas-wrap.collapsed { left:0; }
+
+#sidebar {
+  position:absolute; top:0; left:0; width:clamp(260px,30vw,420px); bottom:0;
+  overflow-y:auto; padding:clamp(16px,2vw,28px) clamp(10px,1.2vw,16px) 40px 12px;
+  z-index:2; background:#fbf8ef; transition:transform 0.35s ease;
+  container-type: inline-size;
+  container-name: sidebarbox;
+}
+#sidebar.collapsed { transform:translateX(-100%); }
+
+#toggle-sidebar {
+  position:absolute; top:50%; left:clamp(260px,30vw,420px);
+  transform:translateY(-50%); z-index:20;
+  background:#fbf8ef; border:0.5px solid #999; color:#222;
+  font-family:'Space Mono',monospace; font-size:14px;
+  cursor:pointer; padding:8px 7px; line-height:1; border-radius:0 2px 2px 0;
+  transition:left 0.35s ease, color 0.15s, border-color 0.15s;
+  writing-mode:vertical-rl; letter-spacing:0.1em;
+}
+#toggle-sidebar:hover { color:#000; border-color:#555; }
+#toggle-sidebar.collapsed { left:12px; border-radius:2px; }
+
+.sidebar-columns { display:flex; gap:10px; align-items:flex-start; }
+.sidebar-columns p { flex:1; min-width:0; }
+/* Font size is driven by the sidebar's own width (cqw), not the viewport —
+   so it scales to stay readable without ever resizing the sidebar itself
+   or eating into the map's space. */
+#sidebar p { font-family:'Courier New', Courier, monospace; font-size:clamp(12px,5.2cqw,15px); line-height:1.75; color:#1a1a1a; letter-spacing:0.01em; margin-bottom:clamp(10px,1.4vh,16px); }
+#sidebar p.bullet { padding-left:12px; color:#1a1a1a; border-left:1px solid #ccc; }
+
+/* compact connections legend — styled like the zoom signage, upper right */
+#legend-mini { display:flex; align-items:center; gap:8px; margin-left:auto; }
+.legend-chip {
+  height:38px; display:flex; align-items:center; gap:7px;
+  border:1px solid #999; border-radius:3px; padding:0 10px;
+  font-family:'Space Mono',monospace; font-size:11px; letter-spacing:0.08em; color:#222;
+}
+@media (max-width:760px) {
+  .sidebar-columns { flex-direction:column; }
+  #sidebar { width:clamp(180px,52vw,260px); }
+  #canvas-wrap { left:clamp(180px,52vw,260px); }
+  #toggle-sidebar { left:clamp(180px,52vw,260px); }
+}
+
+#zoom-controls {
+  display:flex; flex-direction:row; align-items:center; gap:6px;
+  margin-left:auto;
+}
+.zoom-btn {
+  width:38px; height:38px; background:none; border:1px solid #999;
+  color:#222; font-size:18px; cursor:pointer; border-radius:3px;
+  font-family:'Space Mono',monospace; display:flex; align-items:center; justify-content:center;
+  transition:color 0.15s, border-color 0.15s, background 0.15s;
+}
+.zoom-btn:hover { color:#000; border-color:#555; background:#f1ebd9; }
+.zoom-btn.text { width:auto; font-size:11px; letter-spacing:0.08em; padding:0 12px; }
+
+#detail-panel {
+  display:none; position:absolute; bottom:0;
+  left:0; right:0; z-index:15;
+  background:rgba(251,248,239,0.97); border-top:0.5px solid #ddd;
+  padding:16px 24px;
+  align-items:center; gap:16px; flex-wrap:wrap;
+  max-height:60%; overflow-y:auto;
+}
+#detail-panel.visible { display:flex; }
+#detail-path {
+  font-family:'Space Mono',monospace; font-size:15px; color:#222;
+  letter-spacing:0.05em; flex:1 1 100%; min-width:0;
+  display:flex; flex-direction:column; gap:7px;
+}
+#crumb-row { overflow:hidden; white-space:nowrap; text-overflow:ellipsis; font-size:15px; color:#222; }
+.crumb-arrow { color:#999; margin:0 8px; font-size:15px; }
+.crumb-active { color:#000; font-size:15px; }
+#date-row {
+  font-family:'Courier New', Courier, monospace;
+  font-size:14px; color:#000; font-weight:700; letter-spacing:0.06em;
+  white-space:normal; overflow-wrap:normal;
+}
+#last-seen-row {
+  font-size:14px; color:#555; letter-spacing:0.05em;
+  white-space:normal; overflow-wrap:normal;
+}
+#last-seen-row .ls-label { color:#888; margin-right:8px; }
+#last-seen-row .ls-value { color:#222; }
+#last-seen-row .crumb-arrow { color:#999; margin:0 8px; font-size:14px; }
+#last-seen-row .crumb-active { color:#000; font-size:14px; }
+
+#detail-tags { display:flex; gap:8px; flex-shrink:0; flex-wrap:wrap; align-items:center; }
+.dtag { font-family:'Space Mono',monospace; font-size:12px; letter-spacing:0.08em; padding:5px 12px; border-radius:2px; border:0.5px solid; }
+.dtag-action  { color:#222; border-color:#999; }
+.dtag-person  { color:#8a5a30; border-color:#b07a4a; }
+
+#detail-nav { display:flex; gap:6px; flex-shrink:0; margin-left:auto; }
+.nav-btn { font-family:'Space Mono',monospace; font-size:22px; color:#222; background:none; border:1px solid #999; padding:8px 18px; cursor:pointer; border-radius:2px; transition:color 0.15s, border-color 0.15s; }
+.nav-btn:hover { color:#000; border-color:#555; }
+
+.lightbox { display:none; position:fixed; inset:0; z-index:100; background:rgba(251,248,239,0.96); align-items:center; justify-content:center; cursor:default; padding:30px 20px; }
+.lightbox.open { display:flex; }
+.lightbox-inner {
+  position:relative; display:flex; align-items:stretch; gap:30px;
+  max-width:min(92vw,960px); max-height:88vh; animation:lbIn 0.18s ease;
+}
+.lightbox-inner.no-image { justify-content:center; }
+@keyframes lbIn { from{opacity:0;transform:scale(0.95)} to{opacity:1;transform:scale(1)} }
+.lightbox-image { flex:1 1 50%; min-width:0; display:flex; align-items:center; justify-content:center; }
+.lightbox-image img { display:block; max-width:100%; max-height:88vh; object-fit:contain; }
+.lightbox-letter {
+  flex:1 1 380px; max-width:420px; max-height:88vh; overflow-y:auto;
+  background:#fdfbf5; border:0.5px solid #ddd; border-radius:2px;
+  padding:clamp(24px,4vw,40px) clamp(22px,4vw,34px);
+}
+.lightbox-inner.no-image .lightbox-letter { flex:0 1 560px; max-width:560px; }
+.lightbox-inner.no-letter .lightbox-letter { display:none; }
+.lightbox-inner.no-letter .lightbox-image { flex:1 1 100%; max-width:100%; }
+.lightbox-close { position:absolute; top:-34px; right:0; background:none; border:none; font-size:28px; font-weight:200; color:#777; cursor:pointer; line-height:1; transition:color 0.15s; font-family:'Space Mono',monospace; }
+.lightbox-close:hover { color:#000; }
+#error-banner { display:none; position:fixed; bottom:60px; left:50%; transform:translateX(-50%); background:#f6f0e0; border:0.5px solid #ccc; border-radius:3px; padding:10px 22px; font-size:11px; font-family:'Space Mono',monospace; color:#444; z-index:200; white-space:nowrap; }
+
+/* the write-up, shown alongside the illustration for that memory */
+.letter-date {
+  font-family:'Courier New', Courier, monospace; font-size:20px; font-weight:700;
+  letter-spacing:0.03em; color:#000; margin-bottom:8px;
+}
+.letter-eyebrow {
+  font-family:'Space Mono',monospace; font-size:10px; letter-spacing:0.18em;
+  text-transform:uppercase; color:#666; margin-bottom:22px;
+}
+.letter-body p {
+  font-family:'Space Mono',monospace; font-size:14px; line-height:2.05;
+  color:#1a1a1a; letter-spacing:0.015em; margin-bottom:20px;
+}
+
+@media (max-width:760px) {
+  .lightbox-inner { flex-direction:column; max-height:92vh; overflow-y:auto; }
+  .lightbox-letter, .lightbox-inner.no-image .lightbox-letter { max-width:100%; }
+}
+</style>
+</head>
+<body>
+
+<div id="app">
+<header>
+  <p class="title">How was your day?</p>
+  <div id="zoom-controls">
+    <button class="zoom-btn" id="zoom-in">+</button>
+    <button class="zoom-btn" id="zoom-reset">&#8857;</button>
+    <button class="zoom-btn" id="zoom-out">&minus;</button>
+  </div>
+  <div id="legend-mini">
+    <div class="legend-chip">
+      <span>action</span>
+      <svg width="22" height="10" style="flex-shrink:0">
+        <line x1="0"  y1="5" x2="9"  y2="5" stroke="rgba(79,75,70,0.9)" stroke-width="1.5"/>
+        <line x1="13" y1="5" x2="22" y2="5" stroke="rgba(79,75,70,0.9)" stroke-width="1.5"/>
+      </svg>
+    </div>
+    <div class="legend-chip">
+      <span>person</span>
+      <svg width="22" height="10" style="flex-shrink:0">
+        <line x1="0"  y1="5" x2="3"  y2="5" stroke="rgba(168,134,93,0.9)" stroke-width="1.2"/>
+        <line x1="5"  y1="5" x2="8"  y2="5" stroke="rgba(168,134,93,0.9)" stroke-width="1.2"/>
+        <line x1="10" y1="5" x2="13" y2="5" stroke="rgba(168,134,93,0.9)" stroke-width="1.2"/>
+        <line x1="15" y1="5" x2="18" y2="5" stroke="rgba(168,134,93,0.9)" stroke-width="1.2"/>
+        <line x1="20" y1="5" x2="22" y2="5" stroke="rgba(168,134,93,0.9)" stroke-width="1.2"/>
+      </svg>
+    </div>
+  </div>
+</header>
+
+<div id="main">
+<div id="sidebar">
+  <div class="sidebar-columns">
+    <p><strong><em>Arey</em></strong> <em>yaaaar</em>! I sometimes wonder how your days go, and wonder if you’d want to know about mine. On most days, I tell you — my life is rather <strong><em>prosaic</em></strong>, but, nevertheless, I’d tell you things if you’d ask. I’d mostly say <strong>good</strong>. Okay! Maybe I’d say <strong>fine</strong>. You’d ask me about what I did today, and I’d tell you things, in <strong>vague</strong> words, that’ll skip your mind, perhaps — it’s <strong><em>prosaic</em></strong> after all. Ah, alright, I’ll just draw it out, or maybe I’ll write about it, I know my way around with things that need a pen, anyhoo.</p>
+    <p>This isn’t a <strong>daily</strong> ritual. I’d update it sometimes, from time to time, and time and time again. Every entry with coordinates appears on the map; the rest remain <strong>logged</strong>, waiting for a location.</p>
+  </div>
+</div>
+<button id="toggle-sidebar">hide</button>
+<div id="canvas-wrap"></div>
+
+
+<!-- detail panel -->
+<div id="detail-panel">
+  <div id="detail-path">
+    <div id="date-row" style="display:none;"></div>
+    <div id="crumb-row"></div>
+    <div id="last-seen-row" style="display:none;">
+      <span class="ls-label">last viewed ·</span><span class="ls-value" id="ls-value"></span>
+    </div>
+  </div>
+  <div id="detail-tags"></div>
+  <div id="detail-nav">
+    <button class="nav-btn" id="nav-prev">&#8592;</button>
+    <button class="nav-btn" id="nav-next">&#8594;</button>
+  </div>
+</div>
+</div>
+</div>
+
+<!-- ───────────────────────────────────────────────────────────────────
+     The illustration viewer. If a memory has its own write-up (set
+     "writeup" — or "letter"/"note"/"text"/"story" — on that entry in
+     your data), it's shown beside the illustration here.
+     ─────────────────────────────────────────────────────────────────── -->
+<div class="lightbox" id="lightbox">
+  <div class="lightbox-inner">
+    <button class="lightbox-close" id="lbClose">×</button>
+    <div class="lightbox-image" id="lbImageWrap">
+      <img id="lbImg" src="" alt="">
+    </div>
+    <div class="lightbox-letter" id="lbLetter">
+      <div class="letter-date" id="lbDate"></div>
+      <div class="letter-eyebrow" id="lbEyebrow"></div>
+      <div class="letter-body" id="lbBody"></div>
+    </div>
+  </div>
+</div>
+
+<div id="error-banner"></div>
+
+<script>
+const ROOT_FOLDER = 'illustrations';
+let leafNodes    = [];
+let myP5         = null;
+let selectedIdx  = -1;
+
+// ── ZOOM STATE ─────────────────────────────────────────────────────────────
+let zoom = 1;
+let zoomOriginX = 0, zoomOriginY = 0;
+const ZOOM_MIN = 0.1, ZOOM_MAX = 40;
+let lastPinchDist = null;
+
+// ── COLOURS ────────────────────────────────────────────────────────────────
+// Each point is colored by its emotion (the "link" field). Anything not
+// in this map falls back to a neutral grey rather than failing silently.
+// Colors are deliberately desaturated — faded, old-newsprint inks rather
+// than bright flat hues.
+const EMOTION_COLORS = {
+  warmth:     [178, 152, 86],   // faded mustard
+  love:       [176, 100, 128],  // dusty rose
+  fear:       [132, 101, 151],  // faded violet-grey
+  annoyance:  [163, 84, 76],    // brick red
+  pain:       [124, 121, 67],   // muted olive
+  grief:      [92, 108, 150],   // faded slate blue
+};
+const DEFAULT_EMOTION_COLOR = [136, 133, 128];
+const POINT_OPACITY = 0.78;
+
+const MAP_OUTLINE = [62, 59, 53];
+const ACTION_LINE  = [79, 75, 70];
+
+// "link" can be a single emotion, an array of emotions, or a comma-separated
+// string of them (a day can carry more than one feeling).
+function linkList(link){
+  if (!link) return [];
+  if (Array.isArray(link)) return link.filter(Boolean);
+  if (typeof link === 'string') return link.split(',').map(s => s.trim()).filter(Boolean);
+  return [link];
+}
+
+// One emotion -> its color. Two or more -> the average of their colors,
+// so a day that's both warmth and fear lands somewhere between the two.
+function getEmotionColor(link){
+  const links = linkList(link);
+  if (!links.length) return DEFAULT_EMOTION_COLOR;
+  const colors = links.map(l => EMOTION_COLORS[String(l).toLowerCase()] || DEFAULT_EMOTION_COLOR);
+  if (colors.length === 1) return colors[0];
+  const blended = colors.reduce((acc,c) => [acc[0]+c[0], acc[1]+c[1], acc[2]+c[2]], [0,0,0]);
+  return blended.map(v => Math.round(v / colors.length));
+}
+
+const PEOPLE_PALETTE = [
+  [168,134,93],[174,141,103],[163,126,87],[177,147,110],[160,121,82],[171,137,98],
+];
+const peopleColorMap = {};
+let peopleColorCursor = 0;
+function getPersonColor(name) {
+  if (!(name in peopleColorMap)) {
+    peopleColorMap[name] = peopleColorCursor % PEOPLE_PALETTE.length;
+    peopleColorCursor++;
+  }
+  return PEOPLE_PALETTE[peopleColorMap[name]];
+}
+
+// ── NYC BOROUGH OUTLINES ───────────────────────────────────────────────────
+// Simplified borough boundaries (lon/lat), derived from public NYC borough
+// boundary data and reduced to a few hundred points per shape so the whole
+// map can live inline in this file.
+const NYC_BOROUGHS = {
+  "Manhattan": [[[-73.92641,40.87762],[-73.91043,40.87148],[-73.92159,40.86007],[-73.93492,40.83523],[-73.93434,40.80956],[-73.92928,40.79585],[-73.94324,40.78333],[-73.94293,40.77468],[-73.97136,40.74384],[-73.97451,40.73589],[-73.97149,40.72735],[-73.97671,40.71154],[-73.99808,40.70851],[-74.00835,40.70067],[-74.01507,40.70032],[-74.01934,40.70609],[-74.01671,40.71862],[-74.01307,40.71892],[-74.01165,40.72587],[-74.0152,40.72636],[-74.01154,40.72645],[-74.01439,40.72846],[-74.01094,40.73302],[-74.014,40.73333],[-74.01073,40.73344],[-74.01266,40.74075],[-74.00949,40.74074],[-74.01215,40.74356],[-74.0089,40.74392],[-74.01178,40.7456],[-74.0048,40.75781],[-74.007,40.75923],[-74.00097,40.76342],[-74.00316,40.76473],[-73.99962,40.76356],[-74.00156,40.767],[-73.99807,40.76587],[-74.00065,40.76825],[-73.99716,40.76713],[-73.99974,40.76951],[-73.99707,40.76873],[-73.99903,40.77046],[-73.99493,40.77147],[-73.99668,40.7735],[-73.99416,40.77249],[-73.99618,40.77399],[-73.9582,40.82228],[-73.94612,40.84389],[-73.94696,40.85047],[-73.92641,40.87762]],[[-73.92725,40.80039],[-73.91444,40.79567],[-73.91514,40.79201],[-73.92448,40.78232],[-73.93502,40.78301],[-73.93241,40.78972],[-73.9261,40.79073],[-73.92559,40.79182],[-73.92827,40.79233],[-73.92725,40.80039]]],
+  "Brooklyn": [[[-73.9544,40.73911],[-73.92924,40.7274],[-73.92458,40.71916],[-73.9322,40.71497],[-73.93328,40.71098],[-73.93036,40.70872],[-73.93085,40.7149],[-73.92364,40.71732],[-73.92189,40.7094],[-73.90426,40.6957],[-73.89647,40.68234],[-73.86843,40.69472],[-73.86603,40.68192],[-73.85568,40.66387],[-73.86328,40.65694],[-73.85696,40.65059],[-73.85717,40.64368],[-73.86563,40.63879],[-73.87933,40.65462],[-73.868,40.63811],[-73.87445,40.63666],[-73.891,40.64935],[-73.87714,40.63598],[-73.88369,40.62756],[-73.89577,40.62252],[-73.91751,40.63144],[-73.90229,40.62441],[-73.90072,40.62163],[-73.89647,40.62143],[-73.89586,40.61452],[-73.89095,40.61283],[-73.89396,40.61121],[-73.8897,40.61145],[-73.89983,40.6055],[-73.90133,40.61172],[-73.90879,40.61744],[-73.90164,40.60576],[-73.91365,40.60398],[-73.91709,40.60882],[-73.91428,40.61494],[-73.91952,40.60774],[-73.91443,40.60286],[-73.90894,40.60161],[-73.88398,40.60557],[-73.87672,40.58491],[-73.8797,40.58013],[-73.89552,40.57677],[-73.89903,40.58767],[-73.91148,40.58608],[-73.91513,40.59878],[-73.93017,40.60403],[-73.91421,40.5892],[-73.92476,40.58563],[-73.92808,40.5877],[-73.92395,40.59114],[-73.92863,40.58857],[-73.9326,40.59493],[-73.93125,40.58685],[-73.92529,40.58464],[-73.9135,40.5861],[-73.91246,40.58335],[-73.9173,40.58319],[-73.91148,40.58183],[-73.95349,40.58299],[-73.93258,40.58127],[-73.93106,40.57616],[-74.00208,40.56959],[-74.01202,40.57489],[-74.01202,40.57961],[-74.00605,40.58198],[-73.98843,40.57882],[-73.98605,40.58172],[-74.00018,40.58307],[-73.99408,40.58869],[-74.00037,40.58648],[-73.99839,40.59353],[-74.03604,40.6093],[-74.04162,40.62056],[-74.03876,40.63959],[-74.03407,40.64431],[-74.02821,40.64402],[-74.02605,40.64626],[-74.02939,40.6488],[-74.02467,40.6471],[-74.02537,40.65272],[-74.02125,40.65084],[-74.02321,40.6541],[-74.01787,40.65406],[-74.0198,40.65649],[-74.01665,40.65534],[-74.01911,40.65737],[-74.01505,40.65695],[-74.01554,40.66076],[-74.0086,40.65952],[-74.00955,40.66327],[-74.00349,40.66224],[-74.00767,40.66479],[-73.99953,40.6644],[-74.00293,40.66646],[-73.99998,40.66745],[-73.99903,40.66844],[-73.99877,40.6716],[-74.00289,40.66735],[-74.00697,40.66605],[-74.00544,40.67092],[-74.00755,40.66705],[-74.00985,40.66852],[-74.01154,40.66509],[-74.01575,40.66457],[-74.0169,40.66485],[-74.01934,40.67162],[-74.01649,40.66493],[-74.01034,40.66908],[-74.01569,40.67104],[-74.01496,40.67468],[-74.0188,40.67225],[-74.01928,40.67965],[-74.00096,40.69013],[-73.99457,40.70438],[-73.97835,40.706],[-73.97574,40.69957],[-73.97078,40.69998],[-73.97284,40.70273],[-73.96949,40.70052],[-73.97463,40.70768],[-73.96752,40.70344],[-73.97001,40.71045],[-73.96727,40.71699],[-73.96211,40.72515],[-73.95794,40.72465],[-73.96161,40.72587],[-73.96228,40.73405],[-73.9544,40.73911]]],
+  "Queens": [[[-73.8205,40.80101],[-73.79641,40.79573],[-73.79281,40.78878],[-73.78175,40.79113],[-73.78326,40.79492],[-73.77687,40.79644],[-73.77063,40.78846],[-73.77634,40.78849],[-73.7651,40.7738],[-73.74466,40.75656],[-73.75507,40.76753],[-73.75552,40.7777],[-73.75081,40.78289],[-73.70135,40.75078],[-73.70002,40.73924],[-73.70766,40.72783],[-73.73033,40.72216],[-73.72689,40.70998],[-73.72833,40.66304],[-73.72523,40.652],[-73.74144,40.64689],[-73.73996,40.63514],[-73.74373,40.63902],[-73.74702,40.63691],[-73.74729,40.64319],[-73.75476,40.64781],[-73.74742,40.64141],[-73.74855,40.63541],[-73.76502,40.62941],[-73.77077,40.62003],[-73.77082,40.62328],[-73.77173,40.62358],[-73.77203,40.62299],[-73.77219,40.623],[-73.77512,40.61923],[-73.77518,40.61926],[-73.77174,40.62361],[-73.77924,40.62732],[-73.78521,40.62006],[-73.78091,40.6136],[-73.7914,40.60761],[-73.8008,40.61193],[-73.79457,40.62262],[-73.78968,40.62262],[-73.78265,40.63025],[-73.7895,40.63427],[-73.79812,40.63104],[-73.79081,40.63431],[-73.82125,40.64914],[-73.82234,40.65936],[-73.8113,40.66063],[-73.82352,40.66007],[-73.82311,40.648],[-73.83094,40.65163],[-73.82901,40.65611],[-73.83171,40.65393],[-73.83222,40.65446],[-73.83149,40.65498],[-73.83116,40.65592],[-73.82938,40.65651],[-73.82897,40.6572],[-73.82918,40.6578],[-73.83013,40.6584],[-73.82971,40.6585],[-73.8296,40.65866],[-73.83016,40.6598],[-73.83185,40.65489],[-73.83338,40.65805],[-73.83109,40.64849],[-73.83448,40.64811],[-73.83874,40.66245],[-73.83592,40.6455],[-73.84951,40.64413],[-73.85242,40.64739],[-73.8494,40.65143],[-73.85592,40.65131],[-73.85964,40.65846],[-73.86317,40.65828],[-73.85568,40.66387],[-73.86892,40.69515],[-73.89647,40.68234],[-73.90426,40.6957],[-73.92189,40.7094],[-73.92412,40.71514],[-73.92057,40.716],[-73.92515,40.72232],[-73.92037,40.72368],[-73.94594,40.7375],[-73.94146,40.73925],[-73.93859,40.74293],[-73.94715,40.7379],[-73.96261,40.7388],[-73.9435,40.7645],[-73.93489,40.77004],[-73.93638,40.77692],[-73.92861,40.77659],[-73.90986,40.79095],[-73.89593,40.78565],[-73.90115,40.78271],[-73.90258,40.78029],[-73.89439,40.78424],[-73.89529,40.78154],[-73.89275,40.78297],[-73.89166,40.7822],[-73.88945,40.77353],[-73.88392,40.77413],[-73.88488,40.77999],[-73.86788,40.78736],[-73.87256,40.78082],[-73.85505,40.7722],[-73.86276,40.76676],[-73.85069,40.75945],[-73.83913,40.76599],[-73.84781,40.76677],[-73.8513,40.77181],[-73.84897,40.77802],[-73.85236,40.77917],[-73.84925,40.78226],[-73.85953,40.78553],[-73.85284,40.78821],[-73.85369,40.79402],[-73.8379,40.79851],[-73.83728,40.78901],[-73.83293,40.78852],[-73.82793,40.79288],[-73.82946,40.79682],[-73.8205,40.80101]],[[-73.76669,40.61425],[-73.76155,40.60903],[-73.74576,40.61199],[-73.73815,40.60271],[-73.73809,40.59769],[-73.74183,40.5967],[-73.73812,40.59739],[-73.73764,40.59441],[-73.81352,40.58347],[-73.90691,40.5556],[-73.94074,40.54182],[-73.93985,40.55456],[-73.92616,40.56155],[-73.87761,40.56886],[-73.85044,40.58213],[-73.82146,40.58677],[-73.80959,40.59358],[-73.80572,40.59076],[-73.80798,40.59416],[-73.80244,40.59264],[-73.80298,40.59884],[-73.78635,40.60319],[-73.79034,40.59919],[-73.79104,40.59552],[-73.78975,40.59474],[-73.77857,40.60964],[-73.77535,40.60974],[-73.77422,40.60889],[-73.77469,40.60433],[-73.78133,40.59775],[-73.77497,40.60174],[-73.77358,40.59812],[-73.76812,40.59782],[-73.77116,40.59942],[-73.769,40.60939],[-73.77417,40.61183],[-73.76669,40.61425]]],
+  "Bronx": [[[-73.9115,40.91377],[-73.85947,40.90052],[-73.85459,40.90894],[-73.85107,40.91037],[-73.85348,40.90753],[-73.84139,40.90417],[-73.83839,40.89407],[-73.79301,40.88336],[-73.80302,40.86915],[-73.80842,40.87119],[-73.80306,40.86581],[-73.79289,40.87926],[-73.78438,40.87842],[-73.78719,40.87273],[-73.78359,40.87378],[-73.7832,40.87067],[-73.79139,40.86814],[-73.7919,40.86083],[-73.80029,40.84815],[-73.80484,40.86161],[-73.80768,40.85854],[-73.8151,40.86306],[-73.81231,40.85416],[-73.81712,40.85127],[-73.81503,40.8455],[-73.8117,40.84668],[-73.81824,40.84434],[-73.81473,40.84138],[-73.81488,40.83103],[-73.80993,40.82818],[-73.81397,40.82419],[-73.80698,40.82539],[-73.80462,40.81903],[-73.79738,40.81576],[-73.80305,40.81245],[-73.80472,40.81523],[-73.80705,40.81653],[-73.80505,40.81289],[-73.79057,40.80456],[-73.8162,40.81385],[-73.83018,40.81083],[-73.83162,40.80494],[-73.83744,40.8062],[-73.83888,40.82214],[-73.84233,40.82907],[-73.83885,40.83369],[-73.83972,40.83957],[-73.84311,40.82979],[-73.84,40.81994],[-73.84617,40.81068],[-73.85115,40.8144],[-73.85538,40.81429],[-73.84914,40.8123],[-73.84808,40.80492],[-73.85605,40.80459],[-73.85895,40.81027],[-73.87652,40.81613],[-73.86811,40.80675],[-73.87235,40.80018],[-73.8951,40.80686],[-73.91169,40.79662],[-73.92763,40.8027],[-73.93286,40.81012],[-73.93314,40.83519],[-73.90665,40.87575],[-73.91033,40.87904],[-73.91776,40.87566],[-73.9249,40.87889],[-73.9115,40.91377]]],
+  "Staten Island": [[[-74.08221,40.64828],[-74.07166,40.64503],[-74.07299,40.63031],[-74.06802,40.62879],[-74.07291,40.63],[-74.07225,40.62461],[-74.05381,40.60591],[-74.05223,40.59982],[-74.07336,40.57827],[-74.10484,40.55303],[-74.12245,40.54477],[-74.13691,40.52928],[-74.14049,40.535],[-74.12799,40.54071],[-74.13073,40.54626],[-74.13795,40.546],[-74.1423,40.54225],[-74.14226,40.53814],[-74.14184,40.53842],[-74.14217,40.53793],[-74.14104,40.53735],[-74.1413,40.53714],[-74.17758,40.51923],[-74.18483,40.51934],[-74.19521,40.50998],[-74.2076,40.51183],[-74.21758,40.50334],[-74.24676,40.49613],[-74.25308,40.50003],[-74.25353,40.51168],[-74.23982,40.52009],[-74.24397,40.5249],[-74.24205,40.53435],[-74.24804,40.54309],[-74.23071,40.55556],[-74.21859,40.55467],[-74.21197,40.55844],[-74.20465,40.58929],[-74.19751,40.5968],[-74.20282,40.60827],[-74.20079,40.63035],[-74.19462,40.63739],[-74.17996,40.64527],[-74.17959,40.64192],[-74.17437,40.64514],[-74.17298,40.64049],[-74.1661,40.64241],[-74.1528,40.63713],[-74.08221,40.64828]]]
+};
+const BOROUGH_LABELS = {
+  "Manhattan": [-73.969, 40.7777],
+  "Brooklyn": [-73.9497, 40.6452],
+  "Queens": [-73.8176, 40.7203],
+  "Bronx": [-73.8677, 40.8537],
+  "Staten Island": [-74.153, 40.5806]
+};
+
+// ── SIDEBAR ────────────────────────────────────────────────────────────────
+const canvasWrap  = document.getElementById('canvas-wrap');
+const detailPanel = document.getElementById('detail-panel');
+const toggleBtn   = document.getElementById('toggle-sidebar');
+const sidebar     = document.getElementById('sidebar');
+let sidebarOpen   = true;
+toggleBtn.addEventListener('click', () => {
+  sidebarOpen = !sidebarOpen;
+  sidebar.classList.toggle('collapsed', !sidebarOpen);
+  canvasWrap.classList.toggle('collapsed', !sidebarOpen);
+  toggleBtn.classList.toggle('collapsed', !sidebarOpen);
+  toggleBtn.textContent = sidebarOpen ? 'hide' : 'show';
+  setTimeout(() => { if (myP5) myP5.windowResized(); }, 370);
+});
+
+// ── ENTRY NORMALISATION ─────────────────────────────────────────────────────
+// Pull a {lat,lng} pair out of an entry, trying every shape we might
+// reasonably be handed: GeoJSON-style [lng,lat] arrays, lat/lng or
+// lat/lon or latitude/longitude fields, or a nested location object.
+function getCoords(raw) {
+  if (!raw) return null;
+  if (Array.isArray(raw.coordinates) && raw.coordinates.length >= 2) {
+    return { lng:+raw.coordinates[0], lat:+raw.coordinates[1] };
+  }
+  if (raw.geometry && raw.geometry.type === 'Point' && Array.isArray(raw.geometry.coordinates)) {
+    return { lng:+raw.geometry.coordinates[0], lat:+raw.geometry.coordinates[1] };
+  }
+  if (typeof raw.lat === 'number' && (typeof raw.lng === 'number' || typeof raw.lon === 'number')) {
+    return { lat:raw.lat, lng: raw.lng !== undefined ? raw.lng : raw.lon };
+  }
+  if (typeof raw.latitude === 'number' && typeof raw.longitude === 'number') {
+    return { lat:raw.latitude, lng:raw.longitude };
+  }
+  if (raw.location && typeof raw.location.lat === 'number') {
+    return { lat:raw.location.lat, lng: raw.location.lng !== undefined ? raw.location.lng : raw.location.lon };
+  }
+  return null;
+}
+
+function normaliseEntry(e, coords) {
+  if (typeof e === 'string') return { file:e, link:null, action:null, people:[], hidden:false, writeup:null, date:null, coords:null };
+  return {
+    file:           e.file        || '',
+    link:           e.link        || null,
+    action:         e.action      || null,
+    people:         Array.isArray(e.people) ? e.people : (e.people ? [e.people] : []),
+    hidden:         e.hidden      === true,
+    writeup:        e.writeup || e.letter || e.note || e.text || e.story || null,
+    date:           e.date || e.day || e.when || null,
+    coords:         coords || null,
+  };
+}
+
+// Render whatever date string was given as a readable dateline. Falls
+// back to the raw value if it isn't something Date can parse.
+function formatDate(d){
+  if (!d) return '';
+  const dt = new Date(d);
+  if (!isNaN(dt.getTime()) && /\d/.test(String(d))) {
+    return dt.toLocaleDateString(undefined, { year:'numeric', month:'long', day:'numeric' });
+  }
+  return String(d);
+}
+
+// ── FLATTEN ANY OF: nested tree / GeoJSON FeatureCollection / flat array ───
+function flattenTreeNode(node, parentPath, out) {
+  const pathLabel = node.label ? [...parentPath, node.label] : parentPath;
+  // Each node's memories live in one flat "entries" array. (Older files
+  // split these into "high"/"low" arrays — still read if present, just
+  // merged together with nothing to tell them apart anymore.)
+  const rawEntries = Array.isArray(node.entries) ? node.entries
+    : [...(Array.isArray(node.high) ? node.high : []), ...(Array.isArray(node.low) ? node.low : [])];
+  rawEntries.forEach(raw => {
+    const entry = normaliseEntry(raw, getCoords(raw));
+    out.push({ ...entry, labelPath: pathLabel, nodePath: node.path || '' });
+  });
+  if (Array.isArray(node.children)) node.children.forEach(c => flattenTreeNode(c, pathLabel, out));
+}
+
+function flattenData(data) {
+  const out = [];
+  if (!data) return out;
+  if (data.type === 'FeatureCollection' && Array.isArray(data.features)) {
+    data.features.forEach(f => {
+      const props = f.properties || {};
+      let coords = null;
+      if (f.geometry && f.geometry.type === 'Point') coords = { lng:+f.geometry.coordinates[0], lat:+f.geometry.coordinates[1] };
+      const entry = normaliseEntry(props, coords);
+      const labelPath = Array.isArray(props.labelPath) ? props.labelPath : (props.label ? [props.label] : []);
+      out.push({ ...entry, labelPath, nodePath: props.path || '' });
+    });
+    return out;
+  }
+  if (Array.isArray(data.children)) {
+    data.children.forEach(c => flattenTreeNode(c, [], out));
+    return out;
+  }
+  if (Array.isArray(data)) {
+    data.forEach(raw => {
+      const entry = normaliseEntry(raw, getCoords(raw));
+      const labelPath = Array.isArray(raw.labelPath) ? raw.labelPath : (raw.label ? [raw.label] : []);
+      out.push({ ...entry, labelPath, nodePath: raw.path || '' });
+    });
+  }
+  return out;
+}
+
+// Memories that land on (almost) the same spot fan out around it a little
+// so every entry stays individually clickable.
+function assignClusterJitter(entries) {
+  const groups = {};
+  entries.forEach((e, i) => {
+    if (!e.coords) return;
+    const key = e.coords.lat.toFixed(4) + ',' + e.coords.lng.toFixed(4);
+    (groups[key] = groups[key] || []).push(i);
+  });
+  Object.values(groups).forEach(idxs => {
+    const n = idxs.length;
+    if (n <= 1) { if (n===1) entries[idxs[0]]._jitter = {x:0,y:0}; return; }
+    const radius = 9 + Math.min(n, 10) * 1.6;
+    idxs.forEach((idx, i) => {
+      const angle = (Math.PI * 2 * i) / n + 0.4;
+      entries[idx]._jitter = { x: Math.cos(angle)*radius, y: Math.sin(angle)*radius };
+    });
+  });
+}
+
+// ── SHORT LABEL ───────────────────────────────────────────────────────────
+function nodeShortLabel(node) {
+  const crumbs = node.labelPath || [];
+  return crumbs.join(' › ') || '—';
+}
+
+// ── DETAIL PANEL ───────────────────────────────────────────────────────────
+function showDetail(idx) {
+  if (idx < 0 || idx >= leafNodes.length) return;
+
+  selectedIdx = idx;
+  const node = leafNodes[idx];
+
+  const dateRow = document.getElementById('date-row');
+  if (node.date) { dateRow.textContent = formatDate(node.date); dateRow.style.display = 'block'; }
+  else { dateRow.textContent = ''; dateRow.style.display = 'none'; }
+
+  const lsRow = document.getElementById('last-seen-row');
+  const lsVal = document.getElementById('ls-value');
+  const allCrumbs = [...(node.labelPath||[])];
+  const lsParts = allCrumbs.map((l,i) => i===allCrumbs.length-1 ? `<span class="crumb-active">${l}</span>` : `<span>${l}</span>`);
+  lsRow.style.display = 'block';
+  lsVal.innerHTML = lsParts.length ? lsParts.join('<span class="crumb-arrow">›</span>') : '<span class="crumb-active">—</span>';
+
+  const tagsEl = document.getElementById('detail-tags');
+  tagsEl.innerHTML = '';
+  if (node.action) {
+    const t = document.createElement('span'); t.className='dtag dtag-action'; t.textContent=node.action; tagsEl.appendChild(t);
+  }
+  (node.people || []).forEach(person => {
+    const t = document.createElement('span'); t.className='dtag dtag-person'; t.textContent=person; tagsEl.appendChild(t);
+  });
+
+  detailPanel.classList.add('visible');
+}
+
+function hideDetail() { detailPanel.classList.remove('visible'); selectedIdx = -1; }
+
+function navigateTo(idx) {
+  if (!leafNodes.length) return;
+  idx = (idx + leafNodes.length) % leafNodes.length;
+  showDetail(idx);
+  const node = leafNodes[idx];
+  if (!node.hidden && (node.src || node.writeup || node.date)) openLightboxFor(node);
+}
+
+document.getElementById('nav-prev').addEventListener('click', () => navigateTo(selectedIdx<=0 ? leafNodes.length-1 : selectedIdx-1));
+document.getElementById('nav-next').addEventListener('click', () => navigateTo((selectedIdx+1) % leafNodes.length));
+
+document.addEventListener('keydown', e => {
+  if (e.key==='Escape')     { document.getElementById('lightbox').classList.remove('open'); hideDetail(); return; }
+  if (e.key==='ArrowRight') navigateTo(selectedIdx<0 ? 0 : (selectedIdx+1)%leafNodes.length);
+  if (e.key==='ArrowLeft')  navigateTo(selectedIdx<=0 ? leafNodes.length-1 : selectedIdx-1);
+});
+
+// ── ZOOM ───────────────────────────────────────────────────────────────────
+document.getElementById('zoom-in').addEventListener('click',    () => { zoom = Math.min(zoom*1.4, ZOOM_MAX); });
+document.getElementById('zoom-out').addEventListener('click',   () => { zoom = Math.max(zoom/1.4, ZOOM_MIN); });
+document.getElementById('zoom-reset').addEventListener('click', () => { zoom = 1; zoomOriginX = 0; zoomOriginY = 0; });
+
+canvasWrap.addEventListener('wheel', e => {
+  e.preventDefault();
+  const rect = canvasWrap.getBoundingClientRect();
+  const mx = e.clientX - rect.left - rect.width  / 2;
+  const my = e.clientY - rect.top  - rect.height / 2;
+  const delta = Math.sign(e.deltaY) * Math.min(Math.abs(e.deltaY), 30);
+  const factor = 1 - delta * 0.003;
+  const newZoom = Math.min(Math.max(zoom * factor, ZOOM_MIN), ZOOM_MAX);
+  zoomOriginX = mx - (mx - zoomOriginX) * (newZoom / zoom);
+  zoomOriginY = my - (my - zoomOriginY) * (newZoom / zoom);
+  zoom = newZoom;
+}, { passive: false });
+
+// ── TOUCH ──────────────────────────────────────────────────────────────────
+let lastTouchEnd   = 0;
+let singleTouchPos = { x:0, y:0 };
+let isTouchPanning = false;
+let pinchMidPrev   = { x:0, y:0 };
+
+canvasWrap.addEventListener('touchstart', e => {
+  const rect = canvasWrap.getBoundingClientRect();
+  if (e.touches.length === 1) { singleTouchPos = { x: e.touches[0].clientX, y: e.touches[0].clientY }; isTouchPanning = false; }
+  if (e.touches.length === 2) {
+    isTouchPanning = false;
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    lastPinchDist = Math.sqrt(dx*dx + dy*dy);
+    pinchMidPrev = {
+      x: (e.touches[0].clientX + e.touches[1].clientX)/2 - rect.left - rect.width/2,
+      y: (e.touches[0].clientY + e.touches[1].clientY)/2 - rect.top  - rect.height/2
+    };
+  }
+}, { passive:true });
+
+canvasWrap.addEventListener('touchmove', e => {
+  e.preventDefault();
+  const rect = canvasWrap.getBoundingClientRect();
+  if (e.touches.length === 1) {
+    const tx = e.touches[0].clientX, ty = e.touches[0].clientY;
+    const dx = tx - singleTouchPos.x, dy = ty - singleTouchPos.y;
+    if (!isTouchPanning && Math.sqrt(dx*dx+dy*dy) > 8) isTouchPanning = true;
+    if (isTouchPanning) { zoomOriginX += dx; zoomOriginY += dy; singleTouchPos = { x:tx, y:ty }; }
+  }
+  if (e.touches.length === 2 && lastPinchDist != null) {
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    const midX = (e.touches[0].clientX + e.touches[1].clientX)/2 - rect.left - rect.width/2;
+    const midY = (e.touches[0].clientY + e.touches[1].clientY)/2 - rect.top  - rect.height/2;
+    const factor  = dist / lastPinchDist;
+    const newZoom = Math.min(Math.max(zoom * factor, ZOOM_MIN), ZOOM_MAX);
+    zoomOriginX = midX - (midX - zoomOriginX) * (newZoom / zoom);
+    zoomOriginY = midY - (midY - zoomOriginY) * (newZoom / zoom);
+    zoom = newZoom;
+    zoomOriginX += midX - pinchMidPrev.x;
+    zoomOriginY += midY - pinchMidPrev.y;
+    pinchMidPrev = { x:midX, y:midY };
+    lastPinchDist = dist;
+  }
+}, { passive:false });
+
+canvasWrap.addEventListener('touchend', e => {
+  lastPinchDist  = null;
+  isTouchPanning = false;
+  const now = Date.now();
+  if (e.changedTouches.length === 1 && (now - lastTouchEnd) < 280) {
+    const rect = canvasWrap.getBoundingClientRect();
+    const tx = e.changedTouches[0].clientX - rect.left - rect.width/2;
+    const ty = e.changedTouches[0].clientY - rect.top  - rect.height/2;
+    const factor  = zoom > 1.8 ? 1/zoom : 2.5;
+    const newZoom = Math.min(Math.max(zoom * factor, ZOOM_MIN), ZOOM_MAX);
+    zoomOriginX = tx - (tx - zoomOriginX) * (newZoom / zoom);
+    zoomOriginY = ty - (ty - zoomOriginY) * (newZoom / zoom);
+    zoom = newZoom;
+  }
+  lastTouchEnd = now;
+}, { passive:true });
+
+// ── HIT TEST ───────────────────────────────────────────────────────────────
+function hitTestLeaf(screenX, screenY, canvasW, canvasH) {
+  const wx=(screenX - canvasW/2 - zoomOriginX)/zoom;
+  const wy=(screenY - canvasH/2 - zoomOriginY)/zoom;
+  for (let i=0;i<leafNodes.length;i++) {
+    const n=leafNodes[i];
+    if (Math.sqrt((wx-n.wx)**2+(wy-n.wy)**2) <= n.r+12/zoom) return i;
+  }
+  return -1;
+}
+
+// ── BOOT ───────────────────────────────────────────────────────────────────
+async function boot() {
+  let data = null;
+  try { const res=await fetch(`${ROOT_FOLDER}/manifest.json`); if(res.ok) data=await res.json(); } catch(_) {}
+  if (!data) {
+    // Placeholder demo data so the map isn't empty while no manifest.json
+    // is reachable yet. Host your real file at illustrations/manifest.json
+    // (e.g. in your GitHub repo, alongside this page) and it'll load instead.
+    data = { children: [
+      { label:'around the city', path:'demo', children: [
+        { label:'a slow morning', path:'demo/1',
+          entries:[{ file:'', link:'warmth', action:'eating', people:['Sam'], date:'2026-03-02', coordinates:[-73.9654,40.7829],
+            writeup:"We didn't plan it. I was already in the park and Sam texted asking if I wanted company, and somehow that turned into an hour on a bench splitting a bagel neither of us finished.\n\nI keep forgetting how easy it is when it's easy." }] },
+        { label:'an errand', path:'demo/2',
+          entries:[{ file:'', link:'annoyance', action:'waiting', date:'2026-03-05', coordinates:[-73.9442,40.6782] }] },
+        { label:'a walk after dinner', path:'demo/3',
+          entries:[{ file:'', link:'warmth', action:'walking', people:['Sam','Lee'], date:'2026-03-09', coordinates:[-73.9226,40.7794],
+            writeup:"Astoria Park at the wrong time of evening to see anything, and Lee and Sam still stood there pointing at the bridge like it was new." }] },
+        { label:'a hard call', path:'demo/4',
+          entries:[{ file:'', link:'grief', action:'calling', hidden:true, date:'2026-03-12', coordinates:[-73.9897,40.7308] }] },
+        { label:'somewhere unplaced', path:'demo/5',
+          entries:[{ file:'', link:'fear', action:'remembering', date:'2026-03-15' }] },
+        { label:'leaving the apartment', path:'demo/6',
+          entries:[{ file:'', link:['love','fear'], action:'packing', people:['Lee'], date:'2026-03-20', coordinates:[-73.9565,40.7681],
+            writeup:"Two feelings at once, same box: glad to be going, scared of what's on the other side of it." }] },
+      ]},
+    ]};
+  }
+  startSketch(data);
+}
+
+// ── SKETCH ─────────────────────────────────────────────────────────────────
+function startSketch(data) {
+  if (myP5) { myP5.remove(); myP5=null; }
+
+  const entries = flattenData(data);
+  assignClusterJitter(entries);
+
+  const allSrcs = entries
+    .filter(e => e.file && !e.hidden)
+    .map(e => `${ROOT_FOLDER}/${e.nodePath ? e.nodePath + '/' : ''}${e.file}`);
+
+  // ── Projection: simple equirectangular fit, scaled by latitude so the
+  // boroughs read at the right proportions, fit to canvas size each resize.
+  let lonMin=Infinity, lonMax=-Infinity, latMin=Infinity, latMax=-Infinity;
+  Object.values(NYC_BOROUGHS).forEach(rings => rings.forEach(ring => ring.forEach(([lon,lat]) => {
+    if (lon<lonMin) lonMin=lon; if (lon>lonMax) lonMax=lon;
+    if (lat<latMin) latMin=lat; if (lat>latMax) latMax=lat;
+  })));
+  const lonMid = (lonMin+lonMax)/2, latMid = (latMin+latMax)/2;
+  const lonScale = Math.cos(latMid * Math.PI/180);
+  const rawWidth  = (lonMax-lonMin) * lonScale;
+  const rawHeight = (latMax-latMin);
+  let fitScale = 1;
+  function recomputeFit(W,H) { fitScale = Math.min((W*0.82)/rawWidth, (H*0.74)/rawHeight); }
+  function project(lon,lat) {
+    return { x: (lon-lonMid)*lonScale*fitScale, y: -(lat-latMid)*fitScale };
+  }
+
+  const sketch=p=>{
+    const allImgs={};
+    let W,H;
+
+    p.preload=()=>{ allSrcs.forEach(src=>{ allImgs[src]=p.loadImage(src,()=>{},()=>{allImgs[src]=null;}); }); };
+
+    p.setup=()=>{
+      const wrap=document.getElementById('canvas-wrap');
+      W=wrap.offsetWidth; H=wrap.offsetHeight;
+      p.createCanvas(W,H).parent('canvas-wrap');
+      p.textFont('Space Mono');
+      recomputeFit(W,H);
+    };
+
+    p.windowResized=()=>{
+      const wrap=document.getElementById('canvas-wrap');
+      W=wrap.offsetWidth; H=wrap.offsetHeight;
+      if(W>0&&H>0){ p.resizeCanvas(W,H); recomputeFit(W,H); }
+    };
+
+    p.draw=()=>{
+      p.background(251,248,239);
+      leafNodes=[];
+      const S=Math.min(W,H);
+
+      p.push();
+      p.translate(W/2 + zoomOriginX, H/2 + zoomOriginY);
+      p.scale(zoom);
+
+      drawNYCMap(p,S);
+
+      entries.forEach(entry => { if (entry.coords) plotEntry(p, entry, S); });
+
+      p.pop();
+
+      p.push(); p.resetMatrix(); drawCrossLinks(p); p.pop();
+
+      const canvas=document.querySelector('#canvas-wrap canvas');
+      if(canvas) canvas.style.cursor=hitTestLeaf(p.mouseX,p.mouseY,W,H)>=0?'zoom-in':'default';
+    };
+
+    function drawNYCMap(p,S){
+      p.noFill();
+      p.stroke(...MAP_OUTLINE, 215);
+      p.strokeWeight(Math.max(S*0.0032,1.1)/zoom);
+      Object.values(NYC_BOROUGHS).forEach(rings => {
+        rings.forEach(ring => {
+          p.beginShape();
+          ring.forEach(([lon,lat]) => { const pt=project(lon,lat); p.vertex(pt.x,pt.y); });
+          p.endShape(p.CLOSE);
+        });
+      });
+
+      p.noStroke();
+      p.fill(...MAP_OUTLINE, 200);
+      p.textAlign(p.CENTER,p.CENTER);
+      p.textSize(Math.max(S*0.012/zoom, 8));
+      Object.entries(BOROUGH_LABELS).forEach(([name,[lon,lat]]) => {
+        const pt=project(lon,lat);
+        p.text(name.toUpperCase(), pt.x, pt.y);
+      });
+    }
+
+    function plotEntry(p, entry, S){
+      const col = getEmotionColor(entry.link);
+      const isHidden = entry.hidden === true;
+      const opacity = POINT_OPACITY;
+      const nodeSize = Math.max(S*0.02,9);
+
+      const base = project(entry.coords.lng, entry.coords.lat);
+      const jx = entry._jitter ? entry._jitter.x : 0;
+      const jy = entry._jitter ? entry._jitter.y : 0;
+      const wx = base.x + jx, wy = base.y + jy;
+
+      const src = entry.file ? `${ROOT_FOLDER}/${entry.nodePath ? entry.nodePath + '/' : ''}${entry.file}` : '';
+      const img = src && !isHidden ? allImgs[src] : null;
+
+      p.push();
+      p.translate(wx,wy);
+      p.noStroke();
+
+      p.fill(...col, 22*opacity); p.ellipse(0,0,nodeSize*2.6,nodeSize*2.6);
+      p.fill(...col, 40*opacity); p.ellipse(0,0,nodeSize*1.8,nodeSize*1.8);
+      p.fill(...col, 80*opacity); p.ellipse(0,0,nodeSize*1.1,nodeSize*1.1);
+
+      if (img) {
+        const ctx = p.drawingContext;
+        const ns = nodeSize*0.85, nr = ns/2;
+        ctx.save(); ctx.globalAlpha = opacity;
+        ctx.beginPath(); ctx.arc(0,0,nr,0,Math.PI*2); ctx.clip();
+        p.imageMode(p.CENTER); p.image(img,0,0,ns,ns);
+        ctx.restore();
+        p.noFill(); p.stroke(...col, 230*opacity); p.strokeWeight(1/zoom);
+        p.ellipse(0,0,ns,ns);
+      } else {
+        p.noStroke(); p.fill(...col, 220*opacity);
+        p.ellipse(0,0,nodeSize*0.45,nodeSize*0.45);
+      }
+
+      if (isHidden) {
+        // a thin ring is the only hint that clicking this one won't
+        // reveal an image or write-up — the color itself stays full.
+        p.noFill(); p.stroke(...col, 255*opacity); p.strokeWeight(1/zoom);
+        p.ellipse(0,0,nodeSize*0.75,nodeSize*0.75);
+      }
+      p.pop();
+
+      leafNodes.push({
+        wx, wy,
+        r: nodeSize*0.75,
+        src: isHidden ? '' : src,
+        hidden: isHidden,
+        link: entry.link || null,
+        action: entry.action || null,
+        people: entry.people || [],
+        writeup: isHidden ? null : (entry.writeup || null),
+        date: entry.date || null,
+        labelPath: entry.labelPath,
+      });
+    }
+
+    function drawCrossLinks(p){
+      const actions={}, people={};
+      for(const n of leafNodes){
+        if(n.action) { if(!actions[n.action]) actions[n.action] =[]; actions[n.action].push(n); }
+        (n.people||[]).forEach(person=>{
+          if(!people[person]) people[person]=[];
+          people[person].push(n);
+        });
+      }
+      const ts=n=>({ x: W/2 + zoomOriginX + n.wx*zoom, y: H/2 + zoomOriginY + n.wy*zoom });
+
+      for(const tag in actions) { const ns=actions[tag];  for(let i=0;i<ns.length;i++) for(let j=i+1;j<ns.length;j++) drawArc(p,ts(ns[i]),ts(ns[j]),14,4,ACTION_LINE,32,1.0); }
+      for(const person in people){
+        const ns=people[person];
+        const col=getPersonColor(person);
+        for(let i=0;i<ns.length;i++) for(let j=i+1;j<ns.length;j++)
+          drawArc(p,ts(ns[i]),ts(ns[j]),60,1,col,45,0.7);
+      }
+    }
+
+    function drawArc(p,a,b,steps,skip,col,baseAlpha,lw=0.8){
+      const mx=(a.x+b.x)/2, my=(a.y+b.y)/2-Math.abs(b.x-a.x)*0.18;
+      p.noFill(); p.stroke(...col,baseAlpha); p.strokeWeight(lw);
+      for(let s=0;s<steps;s+=skip){
+        const t0=s/steps, t1=(s+skip*0.5)/steps;
+        p.line(bp(a.x,mx,mx,b.x,t0),bp(a.y,my,my,b.y,t0),
+               bp(a.x,mx,mx,b.x,t1),bp(a.y,my,my,b.y,t1));
+      }
+    }
+    function bp(a,b,c,d,t){ const mt=1-t; return mt*mt*mt*a+3*mt*mt*t*b+3*mt*t*t*c+t*t*t*d; }
+  };
+
+  myP5=new p5(sketch);
+  setupInteraction();
+}
+
+// ── INTERACTION ────────────────────────────────────────────────────────────
+function setupInteraction(){
+  const wrap=document.getElementById('canvas-wrap');
+  wrap.addEventListener('click',e=>{
+    const canvas=wrap.querySelector('canvas'); if(!canvas) return;
+    const rect=canvas.getBoundingClientRect();
+    const dpr=window.devicePixelRatio||1;
+    const mx=(e.clientX-rect.left)*(canvas.width/rect.width)/dpr;
+    const my=(e.clientY-rect.top)*(canvas.height/rect.height)/dpr;
+    const W=canvas.width/dpr, H=canvas.height/dpr;
+    const idx=hitTestLeaf(mx,my,W,H);
+    if(idx>=0){
+      showDetail(idx);
+      const node = leafNodes[idx];
+      if (!node.hidden && (node.src || node.writeup || node.date)) openLightboxFor(node);
+    } else { hideDetail(); }
+  });
+}
+
+function escapeHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function openLightboxFor(node){
+  const inner    = document.querySelector('.lightbox-inner');
+  const imgWrap  = document.getElementById('lbImageWrap');
+  const dateEl   = document.getElementById('lbDate');
+  const eyebrow  = document.getElementById('lbEyebrow');
+  const body     = document.getElementById('lbBody');
+
+  if (node.src) {
+    document.getElementById('lbImg').src = node.src;
+    imgWrap.style.display = '';
+    inner.classList.remove('no-image');
+  } else {
+    imgWrap.style.display = 'none';
+    inner.classList.add('no-image');
+  }
+
+  dateEl.textContent = node.date ? formatDate(node.date) : '';
+
+  if (node.writeup || node.date) {
+    eyebrow.textContent = nodeShortLabel(node);
+    body.innerHTML = node.writeup ? String(node.writeup).split(/\n{2,}/)
+      .map(p => `<p>${escapeHtml(p).replace(/\n/g,'<br>')}</p>`).join('') : '';
+    inner.classList.remove('no-letter');
+  } else {
+    eyebrow.textContent = '';
+    body.innerHTML = '';
+    inner.classList.add('no-letter');
+  }
+
+  document.getElementById('lightbox').classList.add('open');
+}
+document.getElementById('lbClose').addEventListener('click',()=>document.getElementById('lightbox').classList.remove('open'));
+document.getElementById('lightbox').addEventListener('click',e=>{ if(e.target===document.getElementById('lightbox')) document.getElementById('lightbox').classList.remove('open'); });
+
+boot();
+</script>
+</body>
+</html>
