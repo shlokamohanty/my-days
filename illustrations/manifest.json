@@ -1,1 +1,20 @@
-
+{
+  "children": [
+    {
+      "label": "home",
+      "path": "home",
+      "entries": [
+        {
+          "file": "ruthie_and_i.jpg",
+          "link": ["warmth", "annoyance"],
+          "action": "getting bitten",
+          "people": ["ruthie (neighbor's cat)"],
+          "date": "2026-06-27",
+          "hidden": false,
+          "coordinates": [-73.957625, 40.708448],
+          "writeup": "I live under the bridge, so it’s dark every morning.\nWhat would it be like if I woke up to the moon instead?\nI think a lot about the light that reflects off the moon. Who is your sun, when the morning comes?\nI think about the moon a lot, even when it’s so far and I can’t reach it. Why do I do that?"
+        }
+      ]
+    }
+  ]
+}
