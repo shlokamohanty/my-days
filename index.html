@@ -394,11 +394,18 @@ function normaliseEntry(e, coords) {
 // back to the raw value if it isn't something Date can parse.
 function formatDate(d){
   if (!d) return '';
-  const dt = new Date(d);
-  if (!isNaN(dt.getTime()) && /\d/.test(String(d))) {
+  const s = String(d);
+  // Plain "YYYY-MM-DD" strings get parsed by `new Date()` as UTC midnight,
+  // which then renders as the day before in any timezone behind UTC.
+  // Building the date from its parts in local time avoids that shift.
+  const isoDateOnly = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const dt = isoDateOnly
+    ? new Date(+isoDateOnly[1], +isoDateOnly[2]-1, +isoDateOnly[3])
+    : new Date(s);
+  if (!isNaN(dt.getTime()) && /\d/.test(s)) {
     return dt.toLocaleDateString(undefined, { year:'numeric', month:'long', day:'numeric' });
   }
-  return String(d);
+  return s;
 }
 
 // ── FLATTEN ANY OF: nested tree / GeoJSON FeatureCollection / flat array ───
