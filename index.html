@@ -74,6 +74,7 @@ header {
   #canvas-wrap { left:clamp(180px,52vw,260px); }
   #toggle-sidebar { left:clamp(180px,52vw,260px); }
   #detail-panel { left:clamp(180px,52vw,260px); }
+  #detail-path { flex-basis:100%; min-width:0; }
 }
 
 #zoom-controls {
@@ -101,7 +102,7 @@ header {
 #detail-panel.visible { display:flex; }
 #detail-path {
   font-family:'Space Mono',monospace; font-size:15px; color:#222;
-  letter-spacing:0.05em; flex:1 1 100%; min-width:0;
+  letter-spacing:0.05em; flex:1 1 auto; min-width:220px;
   display:flex; flex-direction:column; gap:7px;
 }
 #crumb-row { overflow:hidden; white-space:nowrap; text-overflow:ellipsis; font-size:15px; color:#222; }
@@ -755,9 +756,9 @@ function startSketch(data) {
       p.translate(wx,wy);
       p.noStroke();
 
-      p.fill(...col, 22*opacity); p.ellipse(0,headY,nodeSize*2.6,nodeSize*2.6);
-      p.fill(...col, 40*opacity); p.ellipse(0,headY,nodeSize*1.8,nodeSize*1.8);
-      p.fill(...col, 90*opacity); pinShape(p, headR, drop);
+      p.fill(...col, 45*opacity); p.ellipse(0,headY,nodeSize*2.6,nodeSize*2.6);
+      p.fill(...col, 75*opacity); p.ellipse(0,headY,nodeSize*1.8,nodeSize*1.8);
+      p.fill(...col, 130*opacity); pinShape(p, headR, drop);
 
       if (img) {
         const ctx = p.drawingContext;
@@ -766,7 +767,7 @@ function startSketch(data) {
         ctx.beginPath(); ctx.arc(0,headY,nr,0,Math.PI*2); ctx.clip();
         p.imageMode(p.CENTER); p.image(img,0,headY,ns,ns);
         ctx.restore();
-        p.noFill(); p.stroke(...col, 230*opacity); p.strokeWeight(1/zoom);
+        p.noFill(); p.stroke(...col, 255*opacity); p.strokeWeight(3/zoom);
         p.ellipse(0,headY,ns,ns);
       } else {
         p.noStroke(); p.fill(...col, 240*opacity);
