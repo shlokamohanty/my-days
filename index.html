@@ -73,6 +73,7 @@ header {
   #sidebar { width:clamp(180px,52vw,260px); }
   #canvas-wrap { left:clamp(180px,52vw,260px); }
   #toggle-sidebar { left:clamp(180px,52vw,260px); }
+  #detail-panel { left:clamp(180px,52vw,260px); }
 }
 
 #zoom-controls {
@@ -90,12 +91,13 @@ header {
 
 #detail-panel {
   display:none; position:absolute; bottom:0;
-  left:0; right:0; z-index:15;
+  left:clamp(260px,30vw,420px); right:0; z-index:15;
   background:rgba(251,248,239,0.97); border-top:0.5px solid #ddd;
-  padding:16px 24px;
+  padding:16px 24px; transition:left 0.35s ease;
   align-items:center; gap:16px; flex-wrap:wrap;
   max-height:60%; overflow-y:auto;
 }
+#detail-panel.collapsed { left:0; }
 #detail-panel.visible { display:flex; }
 #detail-path {
   font-family:'Space Mono',monospace; font-size:15px; color:#222;
@@ -345,6 +347,7 @@ toggleBtn.addEventListener('click', () => {
   sidebar.classList.toggle('collapsed', !sidebarOpen);
   canvasWrap.classList.toggle('collapsed', !sidebarOpen);
   toggleBtn.classList.toggle('collapsed', !sidebarOpen);
+  detailPanel.classList.toggle('collapsed', !sidebarOpen);
   toggleBtn.textContent = sidebarOpen ? 'hide' : 'show';
   setTimeout(() => { if (myP5) myP5.windowResized(); }, 370);
 });
@@ -615,28 +618,10 @@ async function boot() {
   let data = null;
   try { const res=await fetch(`${ROOT_FOLDER}/manifest.json`); if(res.ok) data=await res.json(); } catch(_) {}
   if (!data) {
-    // Placeholder demo data so the map isn't empty while no manifest.json
-    // is reachable yet. Host your real file at illustrations/manifest.json
-    // (e.g. in your GitHub repo, alongside this page) and it'll load instead.
-    data = { children: [
-      { label:'around the city', path:'demo', children: [
-        { label:'a slow morning', path:'demo/1',
-          entries:[{ file:'', link:'warmth', action:'eating', people:['Sam'], date:'2026-03-02', coordinates:[-73.9654,40.7829],
-            writeup:"We didn't plan it. I was already in the park and Sam texted asking if I wanted company, and somehow that turned into an hour on a bench splitting a bagel neither of us finished.\n\nI keep forgetting how easy it is when it's easy." }] },
-        { label:'an errand', path:'demo/2',
-          entries:[{ file:'', link:'annoyance', action:'waiting', date:'2026-03-05', coordinates:[-73.9442,40.6782] }] },
-        { label:'a walk after dinner', path:'demo/3',
-          entries:[{ file:'', link:'warmth', action:'walking', people:['Sam','Lee'], date:'2026-03-09', coordinates:[-73.9226,40.7794],
-            writeup:"Astoria Park at the wrong time of evening to see anything, and Lee and Sam still stood there pointing at the bridge like it was new." }] },
-        { label:'a hard call', path:'demo/4',
-          entries:[{ file:'', link:'grief', action:'calling', hidden:true, date:'2026-03-12', coordinates:[-73.9897,40.7308] }] },
-        { label:'somewhere unplaced', path:'demo/5',
-          entries:[{ file:'', link:'fear', action:'remembering', date:'2026-03-15' }] },
-        { label:'leaving the apartment', path:'demo/6',
-          entries:[{ file:'', link:['love','fear'], action:'packing', people:['Lee'], date:'2026-03-20', coordinates:[-73.9565,40.7681],
-            writeup:"Two feelings at once, same box: glad to be going, scared of what's on the other side of it." }] },
-      ]},
-    ]};
+    // Nothing reachable at illustrations/manifest.json yet — start empty
+    // rather than showing placeholder content. Add your own entries there
+    // (see the example manifest) and they'll appear on next load.
+    data = { children: [] };
   }
   startSketch(data);
 }
@@ -732,11 +717,24 @@ function startSketch(data) {
       });
     }
 
+    // Draws a filled map-pin silhouette in the current fill style: a
+    // circular head of radius `r`, with a tapered tail running down to a
+    // point at the local origin (the tip is the actual geographic anchor).
+    function pinShape(p, r, drop){
+      const headY = -drop;
+      const baseY = headY + r*0.32;
+      const baseHalfW = r*0.62;
+      p.triangle(-baseHalfW, baseY, baseHalfW, baseY, 0, 0);
+      p.ellipse(0, headY, r*2, r*2);
+    }
+
     function plotEntry(p, entry, S){
       const col = getEmotionColor(entry.link);
       const isHidden = entry.hidden === true;
       const opacity = POINT_OPACITY;
       const nodeSize = Math.max(S*0.02,9);
+      const headR = nodeSize*0.5, drop = nodeSize*0.62;
+      const headY = -drop;
 
       const base = project(entry.coords.lng, entry.coords.lat);
       const jx = entry._jitter ? entry._jitter.x : 0;
@@ -750,35 +748,35 @@ function startSketch(data) {
       p.translate(wx,wy);
       p.noStroke();
 
-      p.fill(...col, 22*opacity); p.ellipse(0,0,nodeSize*2.6,nodeSize*2.6);
-      p.fill(...col, 40*opacity); p.ellipse(0,0,nodeSize*1.8,nodeSize*1.8);
-      p.fill(...col, 80*opacity); p.ellipse(0,0,nodeSize*1.1,nodeSize*1.1);
+      p.fill(...col, 22*opacity); p.ellipse(0,headY,nodeSize*2.6,nodeSize*2.6);
+      p.fill(...col, 40*opacity); p.ellipse(0,headY,nodeSize*1.8,nodeSize*1.8);
+      p.fill(...col, 90*opacity); pinShape(p, headR, drop);
 
       if (img) {
         const ctx = p.drawingContext;
-        const ns = nodeSize*0.85, nr = ns/2;
+        const ns = headR*1.7, nr = ns/2;
         ctx.save(); ctx.globalAlpha = opacity;
-        ctx.beginPath(); ctx.arc(0,0,nr,0,Math.PI*2); ctx.clip();
-        p.imageMode(p.CENTER); p.image(img,0,0,ns,ns);
+        ctx.beginPath(); ctx.arc(0,headY,nr,0,Math.PI*2); ctx.clip();
+        p.imageMode(p.CENTER); p.image(img,0,headY,ns,ns);
         ctx.restore();
         p.noFill(); p.stroke(...col, 230*opacity); p.strokeWeight(1/zoom);
-        p.ellipse(0,0,ns,ns);
+        p.ellipse(0,headY,ns,ns);
       } else {
-        p.noStroke(); p.fill(...col, 220*opacity);
-        p.ellipse(0,0,nodeSize*0.45,nodeSize*0.45);
+        p.noStroke(); p.fill(...col, 240*opacity);
+        pinShape(p, headR*0.42, drop*0.78);
       }
 
       if (isHidden) {
-        // a thin ring is the only hint that clicking this one won't
+        // a thin outline is the only hint that clicking this one won't
         // reveal an image or write-up — the color itself stays full.
         p.noFill(); p.stroke(...col, 255*opacity); p.strokeWeight(1/zoom);
-        p.ellipse(0,0,nodeSize*0.75,nodeSize*0.75);
+        pinShape(p, headR*0.72, drop*1.05);
       }
       p.pop();
 
       leafNodes.push({
         wx, wy,
-        r: nodeSize*0.75,
+        r: nodeSize*1.15,
         src: isHidden ? '' : src,
         hidden: isHidden,
         link: entry.link || null,
