@@ -15,6 +15,26 @@
           "writeup": "I live under the bridge, so it’s dark every morning.\nWhat would it be like if I woke up to the moon instead?\nI think a lot about the light that reflects off the moon. Who is your sun, when the morning comes?\nI think about the moon a lot, even when it’s so far and I can’t reach it. Why do I do that?"
         }
       ]
+    }, 
+    {
+      "label": "at the station",
+      "path": "waiting-for-the-train",
+      "entries": [
+        {
+          "file": "delancey.jpg",
+          "link": ["strange", "grief", "anxiety", "dejected"],
+          "action": "waiting",
+          "people": [],
+          "date": "2026-06-28",
+          "hidden": false,
+          "coordinates": [-73.988199, 40.71851],
+          "writeup": "Waiting at Delancey, thinking about the dream that I had\nI had a dream that a ‘wise’ old man\nasked me to become religious. telling me to go from atheism to scientism.\nI told him no, religion can be problematic, though, it deems superiority. \nI think about my writing, and there are a lot of logical fallacies in my thinking.\nI keep contradicting myself, the cost of being really self-aware and self-correcting, I guess. hypocrisy. Will I ever stop evolving?\nEven though I employ a reductionist thinking, physics can be really broken down to math.\nBut numbers confuse me.",
+          "anxiety_notes": "felt anxious at pride. started discussing future plans, and realised, I don't know what's next. lasted for a short-while.",
+          "anxiety_level": 3,
+          "grief_notes": "i am still in ways, isolating myself.",
+          "grief_level": 4
+        }
+      ]
     }
   ]
 }
