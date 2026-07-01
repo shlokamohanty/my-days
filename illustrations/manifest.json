@@ -13,6 +13,20 @@
           "hidden": false,
           "coordinates": [-73.957625, 40.708448],
           "writeup": "I live under the bridge, so it’s dark every morning.\nWhat would it be like if I woke up to the moon instead?\nI think a lot about the light that reflects off the moon. Who is your sun, when the morning comes?\nI think about the moon a lot, even when it’s so far and I can’t reach it. Why do I do that?"
+        },
+        {
+          "file": "low.jpg",
+          "link": ["grief", "anxiety"],
+          "action": "ruminating",
+          "people": [""],
+          "date": "2026-07-1",
+          "hidden": false,
+          "coordinates": [-73.957625, 40.708448],
+          "writeup": "Everyone is flawed and perhaps that's the human experience.",
+          "anxiety_notes": "3:12am struggled to sleep. started to feel overly vulnerable with my writings. calmed myself down. no one cares about what i write, i do this for myself at the end of the day. writing helps me regulate whatever i can actually regulate. it’s okay. i wonder if logging my anxiety is just going to be an observer effect.",
+          "anxiety_level": 4,
+          "grief_notes": "does my anxiety hurt people?",
+          "grief_level": 4
         }
       ]
     }, 
